@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#38bdf8">
+    <title>✈️ 石垣島 5 天 4 夜之旅</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0ea5e9', // Sky 500
+                        secondary: '#f0f9ff', // Sky 50
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Import Maps for React and Lucide -->
+    <script type="importmap">
+        {
+            "imports": {
+                "react": "https://esm.sh/react@18.2.0",
+                "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+                "lucide-react": "https://esm.sh/lucide-react@0.344.0"
+            }
+        }
+    </script>
+
+    <!-- Babel Standalone -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        /* Hide scrollbar for horizontal scroll areas but keep functionality */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        body { -webkit-tap-highlight-color: transparent; }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel" data-type="module">
+        import React, { useState, useEffect } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { 
+            Plane, MapPin, Calendar, Clock, AlertTriangle, CheckSquare, 
+            Square, ExternalLink, Info, ChevronDown, ChevronUp, Copy, 
+            Map, Navigation, Luggage, Coffee, Camera, ShoppingBag, HeartPulse
+        } from 'lucide-react';
+
+        // --- Custom Hooks ---
+        function useLocalStorage(key, initialValue) {
+            const [storedValue, setStoredValue] = useState(() => {
+                try {
+                    const item = window.localStorage.getItem(key);
+                    return item ? JSON.parse(item) : initialValue;
+                } catch (error) {
+                    return initialValue;
+                }
+            });
+
+            const setValue = (value) => {
+                try {
+                    const valueToStore = value instanceof Function ? value(storedValue) : value;
+                    setStoredValue(valueToStore);
+                    window.localStorage.setItem(key, JSON.stringify(valueToStore));
+                } catch (error) {
+                    console.error(error);
+                }
+            };
+            return [storedValue, setValue];
+        }
+
+        // --- Data Constants ---
+        const PRE_DEPARTURE_CHECKLIST = [
+            { id: 'c1', title: '一、重要證件與文件', items: ['護照（有效期限內即可入境日本）', '護照影本／電子備份（分開存放）', '電子機票（截圖＋Email備份）', '飯店訂單（含日文地址）', '交通票券（JR Pass／地鐵券等）', '旅遊保險保單（醫療／意外）', '台灣身分證（護照遺失備用）', '（自駕）台灣駕照正本＋日文譯本', 'Visit Japan Web（完成入境＋海關申報）'] },
+            { id: 'c2', title: '二、金錢與支付', items: ['日圓現金（小店使用）', '信用卡（2張以上＋開通海外刷卡）', '金融卡（日本ATM提款）', '交通IC卡（Suica／ICOCA）或已綁手機', '行動支付（Apple Pay／Google Pay）'] },
+            { id: 'c3', title: '三、衣物與個人用品', items: ['衣物（依季節準備）', '舒適好走鞋', '防水鞋／備用鞋（雨天）', '基本盥洗用品', '個人保養品／化妝品', '防曬用品', '雨具（雨傘／雨衣）', '個人衛生用品', '環保袋'] },
+            { id: 'c4', title: '四、3C與設備', items: ['手機（eSIM／WiFi機／漫遊）', '行動電源（隨身攜帶）', '藍牙耳機（含充電盒）', '相機電池（隨身攜帶）', '充電器／充電線', '轉接頭（日本100V兩孔）', '相機／記憶卡'] },
+            { id: 'c5', title: '五、藥品與醫療', items: ['常備藥（感冒／腸胃／止痛等）', '慢性病藥物（含處方）', '外傷用品（OK繃等）', '口罩'] },
+            { id: 'c6', title: '六、行程與事前準備', items: ['每日行程規劃（交通＋景點）', 'Google Maps 已標記景點／餐廳', '已下載乘換案內／NAVITIME', '已下載 Uber／GO Taxi', '機場交通已安排', '緊急聯絡資訊（家人／銀行／保險）', '重要文件雲端備份'] }
+        ];
+
+        const NOTICE_CHECKLIST = [
+            { id: 'n1', title: '一、⚠️ 入境與規定', items: ['禁止攜帶肉類、生鮮、部分農產品入境', '攜帶現金超過100萬日圓需申報', '退稅滿5,000～5,500日圓可辦理', '退稅商品封袋後不可於日本境內使用', '日本部分地區需支付住宿稅（現場付款）'] },
+            { id: 'n2', title: '二、💳 金錢與支付', items: ['小店／鄉下多只收現金', '準備零錢（投幣機／寄物櫃）'] },
+            { id: 'n3', title: '三、🚆 交通與行程', items: ['尖峰時段避免攜帶大型行李', '新幹線旺季建議提前劃位', '搭乘交通工具避免佔位與飲食', '自駕需注意停車規則與收費方式'] },
+            { id: 'n4', title: '四、🍴 餐飲與購物', items: ['熱門餐廳建議預約或排隊', '拉麵店多為自助點餐機', '便利商店部分不提供免費餐具', '冷藏／冷凍食品建議自備保冷袋', '餐廳評價可參考 Tabelog（3.5以上）'] },
+            { id: 'n5', title: '五、🙏 文化禮儀', items: ['電車內手機靜音、不講電話', '公共交通避免飲食（長途除外）', '手扶梯靠邊站（關東左／關西右）', '遵守交通號誌', '不邊走邊吃', '排隊不插隊', '結帳使用托盤', '無小費文化', '室內（和室）需脫鞋', '神社寺廟參拜遵守禮儀', '避免拍攝陌生人', '公共場合保持安靜'] },
+            { id: 'n6', title: '六、🌡️ 氣候與穿著', items: ['冬季室內暖氣強（洋蔥式穿搭）', '夏季注意防曬與補水', '梅雨季需攜帶雨具', '春秋溫差大'] },
+            { id: 'n7', title: '七、🛡️ 旅遊安全', items: ['保管好護照／錢包', '留意地震／颱風警報', '夜晚避免偏僻地區', '垃圾桶少，垃圾需自行帶走'] },
+            { id: 'n8', title: '八、📱 網路與實用', items: ['行動電源需隨身攜帶', '飯店地址建議截圖備用', '可使用翻譯APP輔助溝通'] },
+            { id: 'n9', title: '九、📢 制度補充', items: ['Visit Japan Web 為主要通關方式', '住宿稅約100～200日圓／晚（依城市）', '退稅制度將於2026/11/1調整（依官方公告）'] }
+        ];
+
+        // 旅遊資訊 Data庫
+        const ISHIGAKI_SPOTS = [
+            { name: '川平灣', desc: '日本百景之一，必搭玻璃船觀賞海底世界', addr: '沖縄県石垣市川平934' },
+            { name: '玉取崎展望台', desc: '可眺望平久保半島與絕美海景', addr: '沖縄県石垣市伊原間' },
+            { name: '平久保崎燈塔', desc: '石垣島最北端的純白燈塔', addr: '沖縄県石垣市平久保234-50' },
+            { name: '米原海灘', desc: '浮潛聖地，珊瑚礁與熱帶魚豐富', addr: '沖縄県石垣市桴海' },
+            { name: '底地海灘', desc: '波浪平穩的淺灘，適合親子戲水', addr: '沖縄県石垣市川平185-1' },
+            { name: '石垣島鍾乳洞', desc: '歷經20萬年形成的自然奇觀，有燈光秀', addr: '沖縄県石垣市石垣1666' },
+            { name: '班鳩之森 (Banna Park)', desc: '縣立森林公園，可眺望市區與星空', addr: '沖縄県石垣市登野城2241-1' },
+            { name: '石垣市公設市場', desc: '充滿在地活力的傳統市場，買伴手禮好去處', addr: '沖縄県石垣市大川208' },
+            { name: '御神崎', desc: '石垣島最西端，賞夕陽絕佳景點', addr: '沖縄県石垣市崎枝' },
+            { name: '白保海岸', desc: '擁有世界級規模的北半球最大藍珊瑚礁', addr: '沖縄県石垣市白保' },
+            { name: '名藏灣', desc: '石垣島最大海灣，紅樹林生態豐富', addr: '沖縄県石垣市名蔵' },
+            { name: '石垣八重山民俗村', desc: '體驗傳統琉球文化，還能近距離看松鼠猴', addr: '沖縄県石垣市元名蔵967-1' },
+            { name: '桃林寺', desc: '八重山群島最古老的木造寺廟', addr: '沖縄県石垣市石垣285' },
+            { name: '南島星空觀測所', desc: '位於全天88星座中能看到84個的石垣島', addr: '沖縄県石垣市新川' },
+            { name: '730交差點', desc: '石垣市區地標，紀念右側通行改左側通行', addr: '沖縄県石垣市大川' }
+        ];
+
+        const ISHIGAKI_FOOD = [
+            { name: '炭火燒肉 やまもと', desc: '超難訂位的石垣牛燒肉名店', menu: '烤石垣牛、特選牛五花', price: '¥5,000~¥8,000', time: '17:00–21:00', addr: '沖縄県石垣市浜崎町2-5-18' },
+            { name: '居酒屋 ひとし (石敢當店)', desc: '在地人氣海鮮鮪魚居酒屋', menu: '鮪魚壽司、海葡萄、墨魚汁炒麵', price: '¥3,000~¥5,000', time: '17:00–23:30', addr: '沖縄県石垣市大川197-1' },
+            { name: '辺銀食堂', desc: '以石垣島辣油聞名的話題食堂', menu: '五色餃子、炸醬麵', price: '¥1,000~¥2,000', time: '11:30–15:00', addr: '沖縄県石垣市大川199-1' },
+            { name: '明石食堂', desc: '排隊名店，被譽為最好吃的八重山麵', menu: '排骨麵(ソーキそば)、炸豬排', price: '¥1,000~¥1,500', time: '11:00–15:00', addr: '沖縄県石垣市伊原間360' },
+            { name: '豆腐の比嘉', desc: '清晨開賣的傳統手作島豆腐早餐', menu: '豆腐套餐、豆漿', price: '¥500~¥1,000', time: '06:30–15:00(售完為止)', addr: '沖縄県石垣市石垣570' },
+            { name: '八重山そば処 來夏世', desc: '環境清幽的八重山麵專賣店', menu: '八重山麵套餐、炊飯(じゅーしー)', price: '¥800~¥1,200', time: '11:00–14:00', addr: '沖縄県石垣市石垣203' },
+            { name: 'さよこの店', desc: '在地人排隊搶購的手工開口笑(沙翁)', menu: '原味/黑糖/紅芋開口笑', price: '¥100/個', time: '10:00–售完', addr: '沖縄県石垣市登野城170' },
+            { name: 'ミルミル本舗 (本店)', desc: '無敵海景搭配濃郁的手工義式冰淇淋', menu: '牛奶/紅芋/鹽味黑糖冰淇淋', price: '¥400~¥600', time: '10:00–日落', addr: '沖縄県石垣市新川1583-74' },
+            { name: '舟藏の里', desc: '傳統古厝內的鄉土料理，晚上有三線琴表演', menu: '鄉土會席料理、石垣牛排', price: '¥4,000~¥8,000', time: '11:00–22:00', addr: '沖縄県石垣市新川2468-1' },
+            { name: '燒肉 金城', desc: '自產自銷石垣牛的牧場直營燒肉店', menu: '石垣牛特選拼盤、牛舌', price: '¥4,000~¥7,000', time: '11:30–15:00, 17:00–22:30', addr: '沖縄県石垣市大川430-1' },
+            { name: 'Vanilla Deli', desc: '使用100%石垣牛的極品漢堡', menu: '石垣牛酪梨漢堡', price: '¥1,000~¥1,500', time: '11:30–20:00', addr: '沖縄県石垣市石垣12-2' },
+            { name: '海鮮館', desc: '漁港旁的新鮮海產直營食堂', menu: '海鮮丼、生魚片定食', price: '¥1,500~¥2,500', time: '11:00–16:00', addr: '沖縄県石垣市八島町1-1' },
+            { name: 'A&W 石垣店', desc: '沖繩限定美式速食，喝到飽的麥根沙士', menu: 'The A&W漢堡、捲捲薯條', price: '¥800~¥1,200', time: '09:00–22:00', addr: '沖縄県石垣市大川245' },
+            { name: '知念商會', desc: '當地學生的靈魂美食「飯糰魚板」發源地', menu: '飯糰魚板 (オニササ)', price: '¥200~¥400', time: '07:00–21:00', addr: '沖縄県石垣市登野城1249-18' },
+            { name: '瑪麗安伊良部 (MARIANE)', desc: '老字號蛋糕店，以大蒜蛋糕聞名', menu: '大蒜蛋糕、鮮奶油蛋糕', price: '¥400~¥800', time: '10:00–19:00', addr: '沖縄県石垣市新栄町' },
+            { name: '石垣島プリン本舗', desc: '使用當地新鮮牛奶製作的濃郁布丁', menu: '原味布丁、島鹽布丁', price: '¥450~¥550', time: '11:00–20:00', addr: '沖縄県石垣市美崎町3' },
+            { name: '島野菜カフェ ReHellow BEACH', desc: '南國風情海景咖啡廳，主打當地蔬菜', menu: '島蔬菜咖哩、鬆餅', price: '¥1,500~¥2,500', time: '11:00–21:00', addr: '沖縄県石垣市真栄里192-2' },
+            { name: '琉球の牛 (石垣店)', desc: '裝潢高級的頂級石垣牛燒肉', menu: '頂級石垣牛套餐', price: '¥6,000~¥12,000', time: '17:00–22:30', addr: '沖縄県石垣市美崎町' },
+            { name: '燒肉 きたうち牧場 (美崎店)', desc: '優質牧場直營，提供極品石垣牛', menu: '特選牛五花、橫膈膜', price: '¥4,000~¥8,000', time: '11:30–15:00, 16:30–22:00', addr: '沖縄県石垣市美崎町11-1' },
+            { name: 'すし太郎 (壽司太郎)', desc: '提供在地新鮮魚貨的平價美味壽司', menu: '特上握壽司拼盤、石垣牛炙燒壽司', price: '¥2,000~¥4,000', time: '17:00–23:00', addr: '沖縄県石垣市石垣14-2' }
+        ];
+
+        const ISHIGAKI_ACTIVITIES = [
+            { name: '川平灣玻璃船觀光', desc: '不需下水即可透過玻璃船底欣賞美麗的珊瑚礁與熱帶魚。', addr: '川平灣周邊乘船處' },
+            { name: '幻之島 (濱島) 浮潛半日遊', desc: '退潮時才會出現的無人沙洲，周圍海域透明度極高，非常適合浮潛。', addr: '需於石垣港報名出海' },
+            { name: '石垣島星空導覽', desc: '在國際暗天協會認證的星空保護區，由專業嚮導解說滿天星斗。', addr: '依各旅行社指定集合點' },
+            { name: '宮良川紅樹林獨木舟探險', desc: '划乘獨木舟穿梭在被列為國家天然紀念物的紅樹林中，感受大自然。', addr: '沖縄県石垣市宮良' },
+            { name: '石垣燒陶藝體驗', desc: '親手製作結合了海藍色玻璃與陶土的獨特石垣燒，是很棒的紀念品。', addr: '石垣燒窯元 (石垣市名藏)' }
+        ];
+
+        const ISHIGAKI_SOUVENIRS = [
+            { name: '邊銀食堂 石垣島辣油', desc: '帶有豐富香料與蒜香的萬用辣油，超級搶手。', menu: '原味/激辛辣油', price: '¥900~', time: '依各名產店', addr: '石垣市大川199-1及各大超市' },
+            { name: '石垣牛仙貝 (石垣牛せんべい)', desc: '濃郁的石垣牛風味，鹹香酥脆，非常適合下酒。', menu: '石垣牛仙貝', price: '¥600~¥1,000', time: '依各名產店', addr: '石垣市各大土產店' },
+            { name: '皇家金楚糕 (ちんすこう)', desc: '沖繩傳統糕點，口感類似酥餅，有多種口味。', menu: '雪鹽/巧克力/原味', price: '¥500~¥1,200', time: '依各名產店', addr: '石垣市各大土產店' },
+            { name: '石垣之鹽 (石垣の塩)', desc: '抽取石垣島純淨海水製成，天然無添加，帶有海洋微甜。', menu: '料理用鹽/沐浴鹽', price: '¥500~', time: '依各名產店', addr: '石垣市新川1145-57' },
+            { name: '波照間島純黑糖', desc: '八重山群島中最受歡迎的黑糖，香氣濃郁，甜而不膩。', menu: '塊狀黑糖', price: '¥300~', time: '依各大超市', addr: '石垣市各大超市' },
+            { name: '石垣島布丁', desc: '使用當地鮮奶與優質雞蛋，口感綿密滑順。', menu: '原味/鹽味布丁', price: '¥450~', time: '11:00–20:00', addr: '石垣市美崎町3' },
+            { name: '泡盛 八重泉', desc: '石垣島代表性的泡盛酒，帶有獨特香氣與醇厚口感。', menu: '八重泉/黑真珠', price: '¥1,000~', time: '依各酒專賣店', addr: '各大酒專賣店/超市' },
+            { name: '沖繩限定 LuLuLun 面膜', desc: '添加苦瓜、扶桑花、金桔等沖繩特色植物萃取，送禮自用兩相宜。', menu: '苦瓜/金桔款', price: '¥1,600/盒', time: '依各藥妝店', addr: '石垣市各大藥妝店' },
+            { name: '琉球玻璃杯', desc: '帶有獨特氣泡與色彩的手工玻璃杯，充滿南國風情。', menu: '水杯/酒杯', price: '¥1,500~¥3,000', time: '依各工藝品店', addr: '公設市場周邊工藝店' },
+            { name: '星砂', desc: '由有孔蟲遺骸形成的小星星沙粒，裝在小玻璃瓶中非常可愛。', menu: '星砂小瓶/鑰匙圈', price: '¥300~¥500', time: '依各名產店', addr: '石垣市各大土產店' }
+        ];
+
+        const ISHIGAKI_AIRPORT = [
+            { name: "ROYCE' 石垣島限定黑糖巧克力", desc: '結合北海道巧克力與石垣島黑糖的夢幻逸品', menu: '黑糖巧克力/鹽味巧克力', price: '¥800~' },
+            { name: '御菓子御殿 紅芋塔', desc: '沖繩最具代表性的甜點，使用100%沖繩產紅芋', menu: '紅芋塔', price: '¥1,000~' },
+            { name: '石垣牛咖哩調理包', desc: '在家也能品嚐到奢華的石垣牛咖哩', menu: '石垣牛/黑豬肉咖哩', price: '¥800~' },
+            { name: '南風堂 雪鹽金楚糕', desc: '添加宮古島雪鹽，甜鹹交織的絕妙口感', menu: '雪鹽金楚糕', price: '¥600~' },
+            { name: '八重山麵調理包 (含排骨)', desc: '將在地美味直接打包回家', menu: '生麵/乾麵包裝', price: '¥1,200~' },
+            { name: '沖繩風獅爺 (シーサー) 擺飾', desc: '驅邪避凶的吉祥物，機場有多種精緻款式', menu: '陶製/樹脂風獅爺', price: '¥1,500~' },
+            { name: '海帶芽/海葡萄', desc: '充滿海洋風味的健康食材', menu: '乾燥海帶/生海葡萄(需注意保存)', price: '¥500~' },
+            { name: '石垣島特色T恤', desc: '印有石垣島地圖或風獅爺的限定T恤', menu: '各尺寸T恤', price: '¥2,500~' },
+            { name: '黑糖棒/黑糖糖果', desc: '方便攜帶分送同事朋友的小零食', menu: '原味/花生黑糖', price: '¥300~' },
+            { name: '香檸 (シークヮーサー) 原汁', desc: '富含維他命C的沖繩特產柑橘汁，可泡水或調酒', menu: '100%原汁', price: '¥1,000~' }
+        ];
+
+        // --- Subcomponents ---
+
+        const CountdownTimer = ({ targetDateStr }) => {
+            const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0, expired: false });
+
+            useEffect(() => {
+                const target = new Date(targetDateStr).getTime();
+                const timer = setInterval(() => {
+                    const now = new Date().getTime();
+                    const distance = target - now;
+
+                    if (distance < 0) {
+                        clearInterval(timer);
+                        setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, expired: true });
+                    } else {
+                        setTimeLeft({
+                            days: Math.floor(distance / (1000 * 60 * 60 * 24)),
+                            hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+                            minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
+                            seconds: Math.floor((distance % (1000 * 60)) / 1000)
+                        });
+                    }
+                }, 1000);
+                return () => clearInterval(timer);
+            }, [targetDateStr]);
+
+            if (timeLeft.expired) {
+                return (
+                    <div className="bg-gradient-to-r from-teal-500 to-emerald-500 text-white p-4 rounded-2xl shadow-lg mt-4 text-center animate-bounce">
+                        <h3 className="text-xl font-bold">🎉 旅途愉快！您已展開這趟美好的旅程！</h3>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-5 rounded-2xl shadow-xl mt-4 border border-slate-700">
+                    <div className="text-center text-sm text-slate-300 font-medium mb-2 flex items-center justify-center gap-2">
+                        <Clock size={16} /> 【抵達機場倒數時間】
+                    </div>
+                    <div className="flex justify-center items-end gap-2 text-center">
+                        <div className="flex flex-col"><span className="text-3xl font-bold text-sky-400">{timeLeft.days}</span><span className="text-xs text-slate-400">天</span></div><span className="text-2xl font-bold pb-4">:</span>
+                        <div className="flex flex-col"><span className="text-3xl font-bold text-sky-400">{timeLeft.hours.toString().padStart(2, '0')}</span><span className="text-xs text-slate-400">時</span></div><span className="text-2xl font-bold pb-4">:</span>
+                        <div className="flex flex-col"><span className="text-3xl font-bold text-sky-400">{timeLeft.minutes.toString().padStart(2, '0')}</span><span className="text-xs text-slate-400">分</span></div><span className="text-2xl font-bold pb-4">:</span>
+                        <div className="flex flex-col"><span className="text-3xl font-bold text-sky-400">{timeLeft.seconds.toString().padStart(2, '0')}</span><span className="text-xs text-slate-400">秒</span></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const CopyButton = ({ text }) => {
+            const [copied, setCopied] = useState(false);
+            const handleCopy = () => {
+                navigator.clipboard.writeText(text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+            };
+            return (
+                <button onClick={handleCopy} className="ml-2 inline-flex items-center text-xs bg-sky-100 text-sky-600 px-2 py-1 rounded hover:bg-sky-200 transition">
+                    {copied ? <CheckCircle size={12} className="mr-1"/> : <Copy size={12} className="mr-1"/>}
+                    {copied ? '已複製' : '複製'}
+                </button>
+            );
+        };
+
+        const InfoBlock = ({ title, children, defaultOpen = false, icon = <Info size={18} /> }) => {
+            const [isOpen, setIsOpen] = useState(defaultOpen);
+            return (
+                <div className="mb-4 bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden transition-all duration-300">
+                    <button onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition focus:outline-none">
+                        <div className="flex items-center text-slate-800 font-bold">
+                            <span className="text-primary mr-2">{icon}</span>
+                            {title}
+                        </div>
+                        {isOpen ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                    </button>
+                    {isOpen && <div className="p-4 border-t border-slate-100 bg-white space-y-3">{children}</div>}
+                </div>
+            );
+        };
+
+        const MapLink = ({ query, label, className = "" }) => (
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`} 
+               target="_blank" rel="noopener noreferrer" 
+               className={`inline-flex items-center text-blue-600 hover:text-blue-800 underline decoration-blue-300 underline-offset-2 ${className}`}>
+                <MapPin size={16} className="mr-1" /> {label}
+            </a>
+        );
+
+        const ChecklistSection = ({ data, storageKey }) => {
+            const [checkedItems, setCheckedItems] = useLocalStorage(storageKey, {});
+
+            const handleCheck = (itemId) => {
+                setCheckedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+            };
+
+            const totalItems = data.reduce((acc, cat) => acc + cat.items.length, 0);
+            const completedItems = data.reduce((acc, cat) => acc + cat.items.filter(item => checkedItems[item]).length, 0);
+            const progress = totalItems === 0 ? 0 : Math.round((completedItems / totalItems) * 100);
+
+            return (
+                <div className="space-y-6">
+                    {/* Progress Bar */}
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 sticky top-16 z-40">
+                        <div className="flex justify-between items-end mb-2">
+                            <span className="font-bold text-slate-700">準備進度</span>
+                            <span className="text-sm font-bold text-primary">{completedItems} / {totalItems} ({progress}%)</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                            <div className="bg-gradient-to-r from-sky-400 to-primary h-3 rounded-full transition-all duration-500 ease-out" style={{ width: `${progress}%` }}></div>
+                        </div>
+                    </div>
+
+                    {data.map((category) => (
+                        <div key={category.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div className="bg-slate-50 px-4 py-3 border-b border-slate-100 font-bold text-slate-800 flex items-center">
+                                <CheckSquare size={18} className="text-primary mr-2" />
+                                {category.title}
+                            </div>
+                            <div className="divide-y divide-slate-50">
+                                {category.items.map((item, idx) => {
+                                    const isChecked = !!checkedItems[item];
+                                    return (
+                                        <div key={idx} onClick={() => handleCheck(item)} className={`flex items-start p-4 hover:bg-sky-50 transition cursor-pointer ${isChecked ? 'bg-slate-50 opacity-60' : ''}`}>
+                                            <div className="flex-shrink-0 mt-0.5">
+                                                {isChecked ? 
+                                                    <CheckSquare size={22} className="text-emerald-500" /> : 
+                                                    <Square size={22} className="text-slate-300" />
+                                                }
+                                            </div>
+                                            <div className={`ml-3 text-slate-700 leading-relaxed ${isChecked ? 'line-through text-slate-400' : ''}`}>
+                                                {item}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+        };
+
+        const InfoCardList = ({ items, showMenu, showPrice, showTime }) => (
+            <div className="space-y-4">
+                {items.map((item, idx) => (
+                    <div key={idx} className="bg-white border border-slate-100 rounded-xl p-4 shadow-sm hover:shadow-md transition">
+                        <div className="font-bold text-lg text-slate-800 mb-1 flex items-start justify-between">
+                            <span><span className="text-primary mr-1">{idx + 1}.</span>{item.name}</span>
+                            <CopyButton text={item.name} />
+                        </div>
+                        <p className="text-sm text-slate-600 mb-2">{item.desc}</p>
+                        
+                        <div className="space-y-1 mt-3 bg-slate-50 p-3 rounded-lg text-sm">
+                            {item.addr && <div className="flex items-start text-slate-700"><MapPin size={14} className="mt-1 mr-1.5 text-rose-500 flex-shrink-0"/> <MapLink query={item.addr} label="Google Maps 開啟" className="text-xs" /></div>}
+                            {showMenu && item.menu && <div className="flex items-start text-slate-700"><Coffee size={14} className="mt-1 mr-1.5 text-amber-500 flex-shrink-0"/> <span className="font-medium mr-1">推薦:</span> {item.menu}</div>}
+                            {showPrice && item.price && <div className="flex items-start text-slate-700"><ShoppingBag size={14} className="mt-1 mr-1.5 text-emerald-500 flex-shrink-0"/> <span className="font-medium mr-1">價位:</span> {item.price}</div>}
+                            {showTime && item.time && <div className="flex items-start text-slate-700"><Clock size={14} className="mt-1 mr-1.5 text-blue-500 flex-shrink-0"/> <span className="font-medium mr-1">時間:</span> {item.time}</div>}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+
+
+        // --- Main App Component ---
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('summary');
+
+            const tabs = [
+                { id: 'summary', name: '懶人包', color: 'bg-sky-500' },
+                { id: 'tools', name: '工具', color: 'bg-emerald-500' },
+                { id: 'pre-check', name: '出發前 Checklist', color: 'bg-amber-500' },
+                { id: 'notice', name: '注意事項 Checklist', color: 'bg-rose-500' },
+                { id: 'info', name: '旅遊資訊', color: 'bg-indigo-500' }
+            ];
+
+            return (
+                <div className="min-h-screen max-w-md mx-auto bg-slate-50 relative pb-24 shadow-2xl">
+                    {/* Warnings (Not sticky) */}
+                    <div className="bg-yellow-50 text-yellow-800 p-4 text-xs space-y-2 border-b border-yellow-200">
+                        <p className="flex items-start"><AlertTriangle size={14} className="mr-1 mt-0.5 flex-shrink-0 text-yellow-600"/> 本網頁連結將於出發日後7天失效，請截圖保存重要資訊。</p>
+                        <p className="flex items-start"><AlertTriangle size={14} className="mr-1 mt-0.5 flex-shrink-0 text-yellow-600"/> 請用手機預設瀏覽器開啟(非LINE或FB簡化版瀏覽器)，才能正常打開外部連結。</p>
+                        <p className="flex items-start"><AlertTriangle size={14} className="mr-1 mt-0.5 flex-shrink-0 text-yellow-600"/> 開啟網頁後，選擇手機瀏覽器選單中的「加入主畫面」，接著從手機桌面點擊該圖示開啟，系統即會以無網址列的全螢幕模式呈現。</p>
+                    </div>
+
+                    {/* Sticky Tabs Header */}
+                    <div className="sticky top-0 z-50 glass-card border-b border-slate-200">
+                        {/* High Contrast Swipe Instruction */}
+                        <div className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white p-2.5 shadow-md flex justify-between items-center animate-pulse">
+                            <span className="text-xl">👈</span> 
+                            <span className="font-extrabold text-base tracking-wider bg-black/20 px-4 py-1 rounded-full">左右滑動分頁 (5頁)</span> 
+                            <span className="text-xl">👉</span>
+                        </div>
+                        <div className="overflow-x-auto flex snap-x hide-scrollbar px-2 py-3 gap-2">
+                            {tabs.map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`snap-center shrink-0 px-4 py-2 rounded-full font-bold text-sm transition-all shadow-sm
+                                        ${activeTab === tab.id 
+                                            ? `${tab.color} text-white shadow-md ring-2 ring-offset-2 ring-${tab.color.split('-')[1]}-300 scale-105` 
+                                            : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}`}
+                                >
+                                    {tab.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Content Area */}
+                    <div className="p-4">
+                        {/* Tab 1: 懶人包 */}
+                        {activeTab === 'summary' && (
+                            <div className="space-y-6 animate-fade-in">
+                                {/* Hero Image & Title */}
+                                <div className="relative rounded-3xl overflow-hidden shadow-lg h-56 bg-slate-800">
+                                    <img src="https://i.postimg.cc/zX7YZZFt/Snipaste-2026-04-01-08-56-15.png" alt="石垣島" className="w-full h-full object-cover opacity-60 mix-blend-overlay" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-4 text-center">
+                                        <h1 className="text-3xl font-extrabold tracking-widest drop-shadow-md mb-2">✈️ 石垣島</h1>
+                                        <p className="text-xl font-bold bg-white/20 backdrop-blur px-4 py-1 rounded-full drop-shadow">5 天 4 夜之旅</p>
+                                        <p className="mt-3 font-medium flex items-center bg-black/30 px-3 py-1 rounded-lg"><Calendar size={16} className="mr-2"/> 2026/04/04 出發</p>
+                                    </div>
+                                </div>
+
+                                <CountdownTimer targetDateStr="2026-04-04T03:35:00+08:00" />
+
+                                {/* Passenger Info */}
+                                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                                    <div className="flex justify-between items-start mb-4 border-b border-slate-100 pb-4">
+                                        <div>
+                                            <p className="text-sm text-slate-500 font-medium mb-1">機票訂位代號 (PNR)</p>
+                                            <p className="text-3xl font-black text-primary tracking-widest">O72FGM</p>
+                                        </div>
+                                        <CopyButton text="O72FGM" />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <p className="flex justify-between"><span className="text-slate-500">旅客名單</span> <span className="font-bold text-slate-800">丘岱臻</span></p>
+                                        <p className="flex justify-between"><span className="text-slate-500">備註</span> <span className="font-bold text-rose-500 text-right">回程行李額度 +15公斤</span></p>
+                                    </div>
+                                </div>
+
+                                {/* Flight Info */}
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1"><Plane className="mr-2 text-primary" /> 航班資訊 (台灣虎航 IT)</h2>
+                                <div className="grid gap-4">
+                                    <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-primary">
+                                        <div className="flex justify-between text-sm text-slate-500 font-bold mb-3">
+                                            <span className="bg-sky-100 text-sky-700 px-2 py-0.5 rounded">去程 4/04 (六)</span>
+                                            <span>航班 IT736</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-slate-800">06:35</p>
+                                                <p className="text-sm font-medium text-slate-500">桃園 TPE (T1)</p>
+                                            </div>
+                                            <div className="flex-1 px-4 text-center text-slate-300">
+                                                <div className="border-b-2 border-dashed border-slate-300 relative">
+                                                    <Plane size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-primary rotate-90"/>
+                                                </div>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-slate-800">08:35</p>
+                                                <p className="text-sm font-medium text-slate-500">石垣島 ISG</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-600 flex items-start">
+                                            <Luggage size={16} className="mr-2 mt-0.5 flex-shrink-0 text-slate-400"/>
+                                            <span>每人10公斤內手提行李(1件手提+1件隨身) + 20公斤內託運行李(無限制件數)</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl p-5 shadow-sm border-l-4 border-rose-400">
+                                        <div className="flex justify-between text-sm text-slate-500 font-bold mb-3">
+                                            <span className="bg-rose-100 text-rose-700 px-2 py-0.5 rounded">回程 4/08 (三)</span>
+                                            <span>航班 IT737</span>
+                                        </div>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-slate-800">09:25</p>
+                                                <p className="text-sm font-medium text-slate-500">石垣島 ISG</p>
+                                            </div>
+                                            <div className="flex-1 px-4 text-center text-slate-300">
+                                                <div className="border-b-2 border-dashed border-slate-300 relative">
+                                                    <Plane size={16} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-rose-400 rotate-90"/>
+                                                </div>
+                                            </div>
+                                            <div className="text-center">
+                                                <p className="text-3xl font-black text-slate-800">09:35</p>
+                                                <p className="text-sm font-medium text-slate-500">桃園 TPE (T1)</p>
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-600 flex items-start border border-rose-100">
+                                            <Luggage size={16} className="mr-2 mt-0.5 flex-shrink-0 text-rose-500"/>
+                                            <span className="font-bold text-rose-600">丘岱臻：回程行李額度 +15公斤 (共35公斤)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Hotel Info */}
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mt-8"><MapPin className="mr-2 text-rose-500" /> 住宿資訊</h2>
+                                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                                    <h3 className="text-lg font-black text-slate-800 mb-1">Art Hotel Ishigakijima</h3>
+                                    <p className="text-sm text-slate-500 mb-4 font-medium">アートホテル石垣島</p>
+                                    
+                                    <div className="space-y-3 mb-4">
+                                        <div className="flex items-center text-sm"><Calendar size={16} className="mr-3 text-slate-400"/> <span className="font-bold">4/04 - 4/08 (共 4 晚)</span></div>
+                                        <div className="flex items-center text-sm"><Clock size={16} className="mr-3 text-slate-400"/> <span className="text-slate-600">入住 15:00 / 退房 11:00</span></div>
+                                        <div className="flex items-start text-sm"><Map size={16} className="mr-3 mt-0.5 text-slate-400 flex-shrink-0"/> <MapLink query="Art Hotel Ishigakijima" label="沖縄県石垣市大川559" /></div>
+                                    </div>
+                                </div>
+
+                                {/* Timeline */}
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mt-8"><Navigation className="mr-2 text-emerald-500" /> 行程時間軸</h2>
+                                <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 relative">
+                                    <div className="absolute left-8 top-8 bottom-8 w-0.5 bg-slate-200"></div>
+                                    
+                                    {/* Day 1 */}
+                                    <div className="relative z-10 mb-8">
+                                        <div className="flex items-center mb-4">
+                                            <div className="bg-primary text-white w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md ring-4 ring-white">1</div>
+                                            <h3 className="ml-3 font-bold text-lg text-slate-800">4/04 (六) 出發日</h3>
+                                        </div>
+                                        <div className="ml-10 space-y-5">
+                                            <div className="bg-sky-50 rounded-xl p-3 border border-sky-100 relative">
+                                                <div className="absolute -left-[27px] top-4 w-3 h-3 bg-primary rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-primary mb-1">03:35</p>
+                                                <p className="font-bold text-slate-800">抵達桃園機場 T1</p>
+                                                <p className="text-xs text-slate-500 mt-1">請務必於起飛前3小時抵達機場劃位</p>
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute -left-[27px] top-2 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-slate-500 mb-1">06:35</p>
+                                                <p className="text-slate-700">搭乘 IT736 航班起飛</p>
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute -left-[27px] top-2 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-slate-500 mb-1">08:35 (日本時間)</p>
+                                                <p className="text-slate-700">抵達石垣島 ISG</p>
+                                            </div>
+                                            <div className="bg-amber-50 rounded-xl p-3 border border-amber-100 relative">
+                                                <div className="absolute -left-[27px] top-4 w-3 h-3 bg-amber-400 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-amber-600 mb-1">預計 10:30~11:00</p>
+                                                <p className="font-bold text-slate-800">抵達 Art Hotel Ishigakijima</p>
+                                                <p className="text-xs text-slate-600 mt-1">建議搭乘機場巴士直達飯店。</p>
+                                                <div className="mt-2 pt-2 border-t border-amber-200 text-sm text-amber-800 font-bold flex items-start">
+                                                    <HeartPulse size={16} className="mr-1 mt-0.5 flex-shrink-0 text-rose-500"/>
+                                                    提醒：入住放好行李後，建議連上飯店 WiFi，上網購買 VJW 醫療保險。
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Day 2-4 */}
+                                    <div className="relative z-10 mb-8 py-4">
+                                        <div className="flex items-center mb-4">
+                                            <div className="bg-slate-300 text-white w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md ring-4 ring-white">2-4</div>
+                                            <h3 className="ml-3 font-bold text-lg text-slate-500">4/05 - 4/07</h3>
+                                        </div>
+                                        <div className="ml-10 text-center py-6 bg-slate-50 rounded-xl border border-slate-100 border-dashed">
+                                            <p className="text-4xl mb-2">🌴🍹</p>
+                                            <p className="font-bold text-slate-600">享受您的自由活動時間</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Day 5 */}
+                                    <div className="relative z-10">
+                                        <div className="flex items-center mb-4">
+                                            <div className="bg-rose-500 text-white w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow-md ring-4 ring-white">5</div>
+                                            <h3 className="ml-3 font-bold text-lg text-slate-800">4/08 (三) 回程日</h3>
+                                        </div>
+                                        <div className="ml-10 space-y-5">
+                                            <div className="bg-rose-50 rounded-xl p-3 border border-rose-100 relative">
+                                                <div className="absolute -left-[27px] top-4 w-3 h-3 bg-rose-500 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-rose-600 mb-1">06:25</p>
+                                                <p className="font-bold text-slate-800">抵達石垣機場 ISG</p>
+                                                <p className="text-xs text-slate-600 mt-1">起飛前3小時抵達。請提早確認機場巴士時刻表或預約計程車。</p>
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute -left-[27px] top-2 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-slate-500 mb-1">09:25</p>
+                                                <p className="text-slate-700">搭乘 IT737 航班起飛</p>
+                                            </div>
+                                            <div className="relative">
+                                                <div className="absolute -left-[27px] top-2 w-3 h-3 bg-slate-300 rounded-full ring-4 ring-white"></div>
+                                                <p className="text-sm font-bold text-slate-500 mb-1">09:35 (台灣時間)</p>
+                                                <p className="text-slate-700 font-bold">平安抵達台灣！</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Ticket Details */}
+                                <InfoBlock title="機票票務說明 (經濟艙個人票/團體票差異)" defaultOpen={false}>
+                                    <ul className="list-disc pl-5 text-sm text-slate-600 space-y-2">
+                                        <li>訂位代號無法登入航空官網/APP，無法事先線上報到、選位、訂餐、購物（僅限個人票）</li>
+                                        <li>報到請排一般櫃台，團體票不可走團體櫃台（僅限有領隊帶團）</li>
+                                        <li>電子票名字會列多位旅客，只要有您的護照英文姓名即正常</li>
+                                        <li>無法預選座位，同行可能不連號，由航空公司現場劃位安排(早點排隊劃位，鄰座機率高)</li>
+                                    </ul>
+                                </InfoBlock>
+                            </div>
+                        )}
+
+                        {/* Tab 2: 工具 */}
+                        {activeTab === 'tools' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mb-4">🧰 實用工具與連結</h2>
+                                
+                                <div className="grid grid-cols-1 gap-3">
+                                    <a href="https://services.digital.go.jp/zh-cmn-hant/visit-japan-web/" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-sky-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 group-hover:text-primary">Visit Japan Web 官網網站</h3>
+                                            <p className="text-xs text-slate-500 mt-1">快速入境日本必填，建議出發前1~3天完成</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400 group-hover:text-primary"/>
+                                    </a>
+                                    
+                                    <a href="https://www.youtube.com/watch?v=z_AeiRcGpTw" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-sky-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 group-hover:text-primary">Visit Japan Web 教學影片</h3>
+                                            <p className="text-xs text-slate-500 mt-1">2025-2026年版完整填寫方式教學</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400 group-hover:text-primary"/>
+                                    </a>
+
+                                    <a href="https://www.facebook.com/sflight1943/posts/pfbid0T3V7igQKTnNdVswmpCWTGDdXz6n4pDSo5AG7cauxSnubSgGK5ZppBgajjXDBsccHl" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-rose-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 group-hover:text-rose-500">VJW 醫療保險說明</h3>
+                                            <p className="text-xs text-slate-500 mt-1">強烈建議加保，保障突發醫療費用</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400 group-hover:text-rose-500"/>
+                                    </a>
+
+                                    <a href="https://www.youtube.com/watch?v=8EIl4Dj5Io4" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-rose-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800 group-hover:text-rose-500">VJW 醫療保險購買教學</h3>
+                                            <p className="text-xs text-slate-500 mt-1">東京海上日動操作示範影片</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400 group-hover:text-rose-500"/>
+                                    </a>
+
+                                    <a href="https://tokiomarinenichido.jp/zh-hant/china2/" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-slate-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">TOKIO OMOTENASHI POLICY</h3>
+                                            <p className="text-xs text-slate-500 mt-1">東京海上日動外國人保險官網</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400"/>
+                                    </a>
+
+                                    <a href="https://www.data.jma.go.jp/multi/yoho/index.html?lang=cn_zt" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-sky-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">日本天氣 (氣象廳)</h3>
+                                            <p className="text-xs text-slate-500 mt-1">查詢最準確的當地天氣預報</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400"/>
+                                    </a>
+
+                                    <a href="https://www.youtube.com/watch?v=DSiw2Ft8DzM" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-sky-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">石垣島即時影像</h3>
+                                            <p className="text-xs text-slate-500 mt-1">730交差點 YouTube 24h 直播</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-slate-400"/>
+                                    </a>
+
+                                    <a href="https://line.me/R/ti/p/%40boca.tw" target="_blank" className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex items-center justify-between hover:bg-green-50 transition group">
+                                        <div>
+                                            <h3 className="font-bold text-green-700">外交部 LINE</h3>
+                                            <p className="text-xs text-green-600 mt-1">出國登錄與急難救助必備</p>
+                                        </div>
+                                        <ExternalLink size={20} className="text-green-500"/>
+                                    </a>
+                                </div>
+
+                                <InfoBlock title="🚨 緊急電話號碼" icon={<AlertTriangle size={18}/>}>
+                                    <div className="space-y-4 text-sm">
+                                        <div>
+                                            <p className="font-bold text-rose-600 border-b border-rose-100 pb-1 mb-2">生命第一線</p>
+                                            <ul className="space-y-1 text-slate-700">
+                                                <li><span className="font-bold w-12 inline-block">110</span> 報警專線（搶劫、車禍、糾紛）</li>
+                                                <li><span className="font-bold w-12 inline-block">119</span> 救護車＋消防隊</li>
+                                                <li><span className="font-bold w-12 inline-block">118</span> 海難救援</li>
+                                                <li><span className="font-bold w-12 inline-block">#7119</span> 夜間急診諮詢（非緊急超好用！）</li>
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-sky-600 border-b border-sky-100 pb-1 mb-2">實用專線</p>
+                                            <ul className="space-y-1 text-slate-700">
+                                                <li>多語言翻譯支援：03-5285-8185 (中英韓24H)</li>
+                                                <li>旅遊諮詢(JNTO)：050-3816-2787 (中文OK)</li>
+                                            </ul>
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-amber-600 border-b border-amber-100 pb-1 mb-2">台灣旅客專屬管道 (外交部急難救助)</p>
+                                            <p className="text-slate-700 font-bold">+886-800-085-095（台灣直撥）</p>
+                                        </div>
+                                    </div>
+                                </InfoBlock>
+
+                                <InfoBlock title="🏢 駐日代表機構 (沖繩/石垣島管轄)" icon={<MapPin size={18}/>}>
+                                    <div className="bg-slate-50 p-3 rounded-lg text-sm text-slate-700">
+                                        <p className="font-bold text-primary mb-1">駐那霸辦事處</p>
+                                        <p className="flex items-center mt-2"><Clock size={14} className="mr-2 text-slate-400"/> 電話：+81-98-866-4510</p>
+                                        <p className="flex items-start mt-1"><Map size={14} className="mr-2 mt-1 text-slate-400 flex-shrink-0"/> 地址：沖繩縣那霸市久茂地3-15-9 久茂地大樓6樓</p>
+                                        <p className="text-xs text-slate-500 mt-2">※ 護照遺失、緊急急難救助可聯繫此處。</p>
+                                    </div>
+                                </InfoBlock>
+
+                                <InfoBlock title="📱 日本旅遊必備 8大 App" icon={<Square size={18}/>}>
+                                    <div className="space-y-4">
+                                        {[
+                                            { name: '食べログ (Tabelog)', desc: '美食指南，收錄超過80萬間餐廳，真實評價不踩雷。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=com.kakaku.tabelog&hl=zh_TW'},{l:'iOS', u:'https://apps.apple.com/jp/app/%E9%A3%9F%E3%81%B9%E3%83%AD%E3%82%B0%E3%83%8E%E3%83%BC%E3%83%88/id1589402472'}] },
+                                            { name: '乘換案內', desc: '提供清楚的轉乘指引、詳細時間規劃與票價資訊。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=jp.co.jorudan.nrkj&hl=ja&gl=US&pli=1'},{l:'iOS', u:'https://apps.apple.com/jp/app/%E4%B9%97%E6%8F%9B%E6%A1%88%E5%86%85/id299490481'}] },
+                                            { name: '乘換 NAVITIME', desc: '另一款強大的交通轉乘App。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=com.navitime.local.navitime&hl=zh_TW'},{l:'iOS', u:'https://apps.apple.com/tw/app/%E4%B9%97%E6%8F%9Bnavitime-%E9%9B%BB%E8%BB%8A-%E3%83%90%E3%82%B9%E3%81%AE%E4%B9%97%E3%82%8A%E6%8F%9B%E3%81%88%E5%B0%82%E7%94%A8/id528532387'}] },
+                                            { name: 'Google翻譯', desc: '即時鏡頭翻譯菜單、語音交流必備。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=com.google.android.apps.translate&hl=ja&gl='},{l:'iOS', u:'https://apps.apple.com/jp/app/google-%E7%BF%BB%E8%A8%B3/id414706506'}] },
+                                            { name: 'VoiceTra', desc: '支援長時間語音即時翻譯，長篇溝通好用。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=jp.go.nict.voicetra&hl=zh_TW'},{l:'iOS', u:'https://apps.apple.com/tw/app/voicetra/id581137577'}] },
+                                            { name: 'Payke', desc: '掃描藥妝條碼，直接顯示中文成分與評價。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=jp.co.payke.Payke1&hl=ja'},{l:'iOS', u:'https://apps.apple.com/jp/app/payke%E6%97%A5%E6%9C%AC%E3%81%A7%E3%81%AE%E3%82%B7%E3%83%A7%E3%83%83%E3%83%94%E3%83%B3%E3%82%B0%E3%82%92%E4%BE%BF%E5%88%A9%E3%81%AB/id1040452788'}] },
+                                            { name: '手機版 Suica', desc: '綁定Apple Wallet，交通購物逼一下就過。', links: [{l:'iOS', u:'https://apps.apple.com/jp/app/suica/id1156875272'}] },
+                                            { name: 'tenki.jp', desc: '日本氣象協會官方App，降雨機率雷達超準。', links: [{l:'Android', u:'https://play.google.com/store/apps/details?id=jwa.or.jp.tenkijp3&hl=zh_TW'},{l:'iOS', u:'https://apps.apple.com/tw/app/tenki-jp-%E6%97%A5%E6%9C%AC%E6%B0%97%E8%B1%A1%E5%8D%94%E4%BC%9A%E3%81%AE%E5%A4%A9%E6%B0%97%E4%BA%88%E5%A0%B1%E3%82%A2%E3%83%97%E3%83%AA-%E9%9B%A8%E9%9B%B2%E3%83%AC%E3%83%BC%E3%83%80%E3%83%BC/id433865746'}] }
+                                        ].map((app, idx) => (
+                                            <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                <p className="font-bold text-slate-800 mb-1">{app.name}</p>
+                                                <p className="text-xs text-slate-600 mb-2">{app.desc}</p>
+                                                <div className="flex gap-2">
+                                                    {app.links.map(link => (
+                                                        <a key={link.l} href={link.u} target="_blank" className="text-xs bg-white border border-slate-200 px-2 py-1 rounded text-primary hover:bg-sky-50 transition">{link.l} 下載</a>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </InfoBlock>
+
+                                <InfoBlock title="🗺️ Google Map 快捷 (一鍵找附近)" icon={<MapPin size={18}/>}>
+                                    <p className="text-xs text-rose-500 font-bold mb-3 bg-rose-50 p-2 rounded">💡 系統會自動帶入你目前位置，建議開啟手機定位效果最佳。</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {[
+                                            { label: '醫療支援 (醫院/診所)', q: '醫院+病院+clinic+open+now' },
+                                            { label: '夜間 / 急診', q: 'emergency+room+hospital+open+now' },
+                                            { label: '附近早餐 / Morning', q: '早餐+モーニング+open+now' },
+                                            { label: '咖啡廳精選 (4星+)', q: '咖啡廳+カフェ+rating+4+' },
+                                            { label: '在地人氣餐廳 (居酒屋)', q: '日本料理+居酒屋+rating+4+' },
+                                            { label: '補貨專區 (藥妝店)', q: '藥妝店+ドラッグストア' },
+                                            { label: '最近車站', q: '車站+駅' },
+                                            { label: '人氣打卡點', q: 'instagrammable+spots+Japan' },
+                                            { label: '附近超商', q: '7-11+Lawson+FamilyMart+near+me' },
+                                            { label: '行李寄放 (寄物櫃)', q: 'コインロッカー+寄物櫃+coin+locker' },
+                                            { label: '車站寄物櫃', q: '車站+コインロッカー+駅' },
+                                            { label: '大型行李寄放', q: 'large+coin+locker+Japan' },
+                                            { label: '附近廁所', q: '廁所+トイレ+toilet+open+now' },
+                                            { label: '車站/百貨廁所', q: '車站+百貨+トイレ' },
+                                            { label: '免費飲水 / 補水點', q: '免費飲水+給水スポット+water+refill+station' },
+                                            { label: '無印良品補水點', q: '無印良品+給水+MUJI+water+refill' },
+                                            { label: '合法吸菸區', q: '喫煙所+smoking+area+Japan' },
+                                            { label: '室內吸菸室', q: '吸菸室+喫煙室+shopping+mall' }
+                                        ].map((btn, idx) => (
+                                            <a key={idx} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(btn.q)}`} target="_blank" 
+                                               className="bg-white border border-slate-200 p-2 rounded-xl text-center text-sm font-bold text-slate-700 hover:border-primary hover:text-primary hover:bg-sky-50 transition shadow-sm flex flex-col items-center justify-center min-h-[60px]">
+                                                {btn.label}
+                                            </a>
+                                        ))}
+                                    </div>
+                                </InfoBlock>
+                            </div>
+                        )}
+
+                        {/* Tab 3: 出發前 Checklist */}
+                        {activeTab === 'pre-check' && (
+                            <div className="animate-fade-in">
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mb-4">🎒 出發前準備清單</h2>
+                                <ChecklistSection data={PRE_DEPARTURE_CHECKLIST} storageKey="ishigaki-pre-checklist" />
+                            </div>
+                        )}
+
+                        {/* Tab 4: 注意事項 Checklist */}
+                        {activeTab === 'notice' && (
+                            <div className="animate-fade-in">
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mb-4">⚠️ 日本旅遊注意事項</h2>
+                                <ChecklistSection data={NOTICE_CHECKLIST} storageKey="ishigaki-notice-checklist" />
+                            </div>
+                        )}
+
+                        {/* Tab 5: 旅遊資訊 */}
+                        {activeTab === 'info' && (
+                            <div className="space-y-4 animate-fade-in">
+                                <h2 className="text-xl font-extrabold flex items-center text-slate-800 ml-1 mb-4">🌴 石垣島旅遊資訊</h2>
+                                
+                                <InfoBlock title="📍 目的地熱門景點 (Top 15)" icon={<Camera size={18}/>}>
+                                    <InfoCardList items={ISHIGAKI_SPOTS} showMenu={false} showPrice={false} showTime={false} />
+                                </InfoBlock>
+
+                                <InfoBlock title="🍽️ 目的地熱門餐廳 (Tabelog 百名店+3.7↑)" icon={<Coffee size={18}/>}>
+                                    <p className="text-xs text-rose-500 font-bold mb-3 bg-rose-50 p-2 rounded">💡 建議熱門餐廳提前電話或上網預約，以免向隅。</p>
+                                    <InfoCardList items={ISHIGAKI_FOOD} showMenu={true} showPrice={true} showTime={true} />
+                                </InfoBlock>
+
+                                <InfoBlock title="🚣 目的地熱門活動/體驗" icon={<Map size={18}/>}>
+                                    <InfoCardList items={ISHIGAKI_ACTIVITIES} showMenu={false} showPrice={false} showTime={false} />
+                                </InfoBlock>
+
+                                <InfoBlock title="🎁 目的地必買伴手禮 (IG人氣款)" icon={<ShoppingBag size={18}/>}>
+                                    <InfoCardList items={ISHIGAKI_SOUVENIRS} showMenu={true} showPrice={true} showTime={true} />
+                                </InfoBlock>
+
+                                <InfoBlock title="✈️ 國際機場最後補貨清單" icon={<Plane size={18}/>}>
+                                    <InfoCardList items={ISHIGAKI_AIRPORT} showMenu={true} showPrice={true} showTime={false} />
+                                </InfoBlock>
+
+                                <InfoBlock title="🚇 【交通不迷路系列】" icon={<Navigation size={18}/>}>
+                                    <div className="space-y-2">
+                                        <a href="https://drive.google.com/file/d/17Mks_tdSPbttg1S5LL6BWjsHCtGVtjoj/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">東京站 攻略圖</a>
+                                        <a href="https://drive.google.com/file/d/1mtshCx8Sy1vnmDerkUyEacfuZNEDoDkR/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">池袋站 攻略圖</a>
+                                        <a href="https://drive.google.com/file/d/1vM1irj-fpFQ0HBDPzA5kra99rnX3LKaP/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">新宿站 攻略圖</a>
+                                        <a href="https://drive.google.com/file/d/1mDXTBVf8RDLQfLSc46WlOumZH7FQlmSA/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">大阪 難波站 攻略圖</a>
+                                        <a href="https://drive.google.com/file/d/1onVDeyv8PLDd9bMLpjy9dJePa0cpchJi/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">大阪 梅田站 攻略圖</a>
+                                        <a href="https://drive.google.com/file/d/1hZuKHepJfVfV3sTEmnTbYStFpnyFW72K/view" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">札幌站 攻略圖</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid0Ss37XJYB4hZA76ctDdPYY5kpge8U4LRZT7KikogcjoGu7fLHVNVBGKK292MGwCPdl" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">東京 3 大免費觀景台</a>
+                                    </div>
+                                </InfoBlock>
+
+                                <InfoBlock title="🍱 【懂吃懂買系列】" icon={<CheckCircle size={18}/>}>
+                                    <div className="space-y-2">
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid0356TVR3tVA6JD5vQ11ToVdDbJx7ez6AKJviHkRg1y7uWh5gxR9sB6yHughBqPiDBBl" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">拉麵文化懶人包</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid0V1yStPbSxTaCwxKWFi19gCmohCmLRyztuQyBtUBRWS2oEWkggZBPSmW4yc3GVh1Al" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">飯店吃泡麵別犯錯</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid02fJUiJ94JHCnyDZ7Jd7ypBcBRHqPYj1QZeKcZoN3iekENYqXd69cPuZnB4fJDMiwql" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">筷子禮儀冷知識</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid023oDJ8dmvwjD6wfq9tD7wFLZnrhuzyo6Spv8977zGSG6ruQEsyL8EiiRw44Qx9NTsl" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">護照簽名提醒</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid0md6dqibtFV52SNk2JSWzQHftqjdic18LZPWNbdfBQGbhVgzngVeMQVKYB5mS9chil" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">親子遊住宿指南</a>
+                                        <a href="https://www.facebook.com/sflight1943/posts/pfbid0H442Ye1U6agyA9bfSUswaUTkVUL4939NByjRezK7pZ9bezRyz3RzyD9ckXbHLJPZl" target="_blank" className="block p-3 bg-slate-50 rounded-lg text-primary font-bold hover:underline">日本飯店房型詳解</a>
+                                    </div>
+                                </InfoBlock>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="my-10 px-4 text-center text-sm text-slate-500 font-medium">
+                        <p className="mb-2">想要其它的行程 / 機票優惠？</p>
+                        <div className="flex justify-center space-x-6 mb-3">
+                            <a href="https://lin.ee/vHkN3Vk" target="_blank" className="text-emerald-600 hover:text-emerald-800 font-bold">加LINE詢問</a>
+                            <a href="https://www.facebook.com/sflight1943" target="_blank" className="text-blue-600 hover:text-blue-800 font-bold">追蹤FB粉專</a>
+                        </div>
+                        <p>本網頁由 晨心日本機票小舖 為您整理 ✈️</p>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
